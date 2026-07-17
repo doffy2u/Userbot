@@ -1,5 +1,5 @@
 import os
-from storage.chats import is_enabled
+import tempfile
 
 from utils.messages import (
     pick,
@@ -8,41 +8,60 @@ from utils.messages import (
     ERROR_MESSAGES,
     maybe_signature,
 )
+
 from services.transcription import transcribe
-
-DOWNLOAD_FOLDER = "downloads"
-
-os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
+from storage.chats import is_enabled
 
 
 async def handle_voice(event):
-    # Ignore non-voice messages
+
+    print("📩 Message received")
+
     if not event.voice:
         return
+
+    print("🎤 Voice detected")
+
     if not is_enabled(event.chat_id):
+        print("🚫 Chat disabled")
         return
-   
-    # Random loading message
+
+    print("✅ Chat enabled")
+
     reply = await event.reply(
         pick(LOADING_MESSAGES)
     )
 
-    # Download the voice note
-    path = await event.download_media(file=DOWNLOAD_FOLDER)
+    # Download temporarily
+    path = await event.download_media(
+        file=tempfile.gettempdir()
+    )
 
-    # Transcribe (placeholder for now)
-    text = await transcribe(path)
+    print("📥 Downloaded:", path)
 
-    if text:
-        message = (
-            f"{pick(INTRO_MESSAGES)}\n\n"
-            f"{text}"
-            f"{maybe_signature()}"
-        )
+    try:
+        print("🧠 Starting whisper...")
 
-        await reply.edit(message)
+        text = await transcribe(path)
 
-    else:
-        await reply.edit(
-            pick(ERROR_MESSAGES)
-        )
+        print("📝 Result:", text)
+
+        if text:
+            message = (
+                f"{pick(INTRO_MESSAGES)}\n\n"
+                f"{text}"
+                f"{maybe_signature()}"
+            )
+
+            await reply.edit(message)
+
+        else:
+            await reply.edit(
+                pick(ERROR_MESSAGES)
+            )
+
+    finally:
+        # Always delete audio after processing
+        if path and os.path.exists(path):
+            os.remove(path)
+            print("🗑️ Deleted temporary voice file")
