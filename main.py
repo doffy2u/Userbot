@@ -1,11 +1,27 @@
-from telethon import TelegramClient
+from telethon import TelegramClient, events
+
 from config import API_ID, API_HASH, SESSION_NAME
+from handlers.voice import handle_voice
+from handlers.commands import handle_commands
 
-client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
+client = TelegramClient(
+    SESSION_NAME,
+    API_ID,
+    API_HASH
+)
 
-async def main():
-    me = await client.get_me()
-    print(f"Logged in as: {me.first_name} (@{me.username})")
+client.add_event_handler(
+    handle_voice,
+    events.NewMessage
+)
 
-with client:
-    client.loop.run_until_complete(main())
+client.add_event_handler(
+    handle_commands,
+    events.NewMessage
+)
+
+print("👂 Yapper is online...")
+
+client.start()
+
+client.run_until_disconnected()
