@@ -34,6 +34,7 @@ async def handle_voice(event):
 
         text = result["text"]
         english = result["english"]
+        language = result["language"]
 
         if text:
 
@@ -47,7 +48,7 @@ async def handle_voice(event):
             else:
 
                 message = (
-                    f"🌐 Language detected\n\n"
+                    f"🌐 {language}\n\n"
                     f"🗣️ They said:\n"
                     f"{text}\n\n"
                     f"🇬🇧 English:\n"

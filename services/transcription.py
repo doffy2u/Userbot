@@ -11,7 +11,21 @@ WHISPER_PATH = os.path.expanduser(
 MODEL_PATH = os.path.expanduser(
     "~/whisper.cpp/models/ggml-base.bin"
 )
-
+LANGUAGES = {
+    "en": "English",
+    "ml": "Malayalam",
+    "hi": "Hindi",
+    "ta": "Tamil",
+    "te": "Telugu",
+    "kn": "Kannada",
+    "ar": "Arabic",
+    "fr": "French",
+    "de": "German",
+    "es": "Spanish",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "zh": "Chinese",
+}
 
 async def transcribe(audio_path):
 
@@ -78,5 +92,6 @@ async def transcribe(audio_path):
 
     return {
         "text": text,
-        "english": english
+        "english": english,
+        "language": "unknown"
     }
