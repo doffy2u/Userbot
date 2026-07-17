@@ -15,43 +15,45 @@ from storage.chats import is_enabled
 
 async def handle_voice(event):
 
-    print("📩 Message received")
-
     if not event.voice:
         return
 
-    print("🎤 Voice detected")
-
     if not is_enabled(event.chat_id):
-        print("🚫 Chat disabled")
         return
-
-    print("✅ Chat enabled")
 
     reply = await event.reply(
         pick(LOADING_MESSAGES)
     )
 
-    # Download temporarily
     path = await event.download_media(
         file=tempfile.gettempdir()
     )
 
-    print("📥 Downloaded:", path)
-
     try:
-        print("🧠 Starting whisper...")
+        result = await transcribe(path)
 
-        text = await transcribe(path)
-
-        print("📝 Result:", text)
+        text = result["text"]
+        english = result["english"]
 
         if text:
-            message = (
-                f"{pick(INTRO_MESSAGES)}\n\n"
-                f"{text}"
-                f"{maybe_signature()}"
-            )
+
+            if text.lower() == english.lower():
+
+                message = (
+                    f"📝 {text}"
+                    f"{maybe_signature()}"
+                )
+
+            else:
+
+                message = (
+                    f"🌐 Language detected\n\n"
+                    f"🗣️ They said:\n"
+                    f"{text}\n\n"
+                    f"🇬🇧 English:\n"
+                    f"{english}"
+                    f"{maybe_signature()}"
+                )
 
             await reply.edit(message)
 
@@ -61,7 +63,5 @@ async def handle_voice(event):
             )
 
     finally:
-        # Always delete audio after processing
         if path and os.path.exists(path):
             os.remove(path)
-            print("🗑️ Deleted temporary voice file")

@@ -1,3 +1,8 @@
+import logging
+
+logging.basicConfig(
+    level=logging.WARNING
+)
 from telethon import TelegramClient, events
 
 from config import API_ID, API_HASH, SESSION_NAME

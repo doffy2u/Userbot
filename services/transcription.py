@@ -3,6 +3,7 @@ import os
 import uuid
 import tempfile
 
+
 WHISPER_PATH = os.path.expanduser(
     "~/whisper.cpp/build/bin/whisper-cli"
 )
@@ -16,9 +17,7 @@ async def transcribe(audio_path):
 
     wav_file = f"{tempfile.gettempdir()}/{uuid.uuid4()}.wav"
 
-    print("🔄 Converting audio...")
-
-    convert = subprocess.run(
+    subprocess.run(
         [
             "ffmpeg",
             "-y",
@@ -32,18 +31,12 @@ async def transcribe(audio_path):
             "pcm_s16le",
             wav_file
         ],
-        capture_output=True,
-        text=True
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
     )
 
-    if convert.returncode != 0:
-        print("FFMPEG ERROR:")
-        print(convert.stderr)
-        return None
 
-
-    print("🧠 Running Whisper...")
-
+    # Normal transcription
     result = subprocess.run(
         [
             WHISPER_PATH,
@@ -58,21 +51,32 @@ async def transcribe(audio_path):
     )
 
 
+    text = result.stdout.strip()
+
+
+    # English translation
+    translation = subprocess.run(
+        [
+            WHISPER_PATH,
+            "-m",
+            MODEL_PATH,
+            "-f",
+            wav_file,
+            "--translate",
+            "--no-timestamps"
+        ],
+        capture_output=True,
+        text=True
+    )
+
+
+    english = translation.stdout.strip()
+
+
     os.remove(wav_file)
 
 
-    print("WHISPER:")
-    print(result.stdout)
-
-
-    # Remove whisper info lines
-    lines = result.stdout.splitlines()
-
-    text_lines = [
-        line for line in lines
-        if not line.startswith("[")
-    ]
-
-    text = " ".join(text_lines).strip()
-
-    return text if text else None
+    return {
+        "text": text,
+        "english": english
+    }
