@@ -1,4 +1,14 @@
-import requests
+from ddgs import DDGS
+import asyncio
+
+BLOCKED = {
+    "porn",
+    "xxx",
+    "hentai",
+    "nsfw",
+    "onlyfans",
+    "sex"
+}
 
 
 async def handle_search(event):
@@ -8,97 +18,52 @@ async def handle_search(event):
 
     text = event.raw_text.strip()
 
-    if not (
-        text.startswith(".search")
-        or text.startswith(".fact")
-    ):
+    if not text.startswith(".search"):
         return
 
-    mode = "fact" if text.startswith(".fact") else "search"
+    query = text[len(".search"):].strip()
 
-    # -------- Get query --------
+    if not query:
+        await event.reply("Usage: .search <question>")
+        return
 
-    if event.is_reply:
-
-        reply = await event.get_reply_message()
-        query = (reply.raw_text or "").strip()
-
-        if not query:
-            await event.reply("❌ Replied message is empty.")
-            return
-
-    else:
-
-        parts = text.split(maxsplit=1)
-
-        if len(parts) < 2:
-            await event.reply(f"Usage:\n.{mode} question")
-            return
-
-        query = parts[1].strip()
+    # 18+ filter
+    if any(word in query.lower().split() for word in BLOCKED):
+        await event.reply("🚫 Explicit searches are blocked.")
+        return
 
     try:
+        await event.reply("🔎 Searching...")
 
-        r = requests.get(
-            "https://api.duckduckgo.com/",
-            params={
-                "q": query,
-                "format": "json",
-                "pretty": 1,
-                "no_html": 1,
-                "no_redirect": 1,
-                "skip_disambig": 0
-            },
-            timeout=10
+        results = await asyncio.to_thread(
+            lambda: list(
+                DDGS().text(
+                    query,
+                    max_results=3
+                )
+            )
         )
 
-        data = r.json()
+        if not results:
+            await event.reply("❌ No results found.")
+            return
 
-        fields = [
-            data.get("AbstractText", ""),
-            data.get("Answer", ""),
-            data.get("Definition", ""),
-            data.get("Entity", "")
-        ]
+        best = results[0]
 
-        answer = ""
+        title = best.get("title", "")
+        body = best.get("body", "")
 
-        for field in fields:
-            if field and field.strip():
-                answer = field.strip()
-                break
+        if not body:
+            body = "No summary available."
 
-        if not answer:
+        answer = (
+            f"🔎 {title}\n\n"
+            f"{body}"
+        )
 
-            related = data.get("RelatedTopics", [])
-
-            for item in related:
-
-                if isinstance(item, dict):
-
-                    if item.get("Text"):
-                        answer = item["Text"]
-                        break
-
-                    for sub in item.get("Topics", []):
-
-                        if sub.get("Text"):
-                            answer = sub["Text"]
-                            break
-
-                if answer:
-                    break
-
-        if answer:
-
-            if mode == "fact":
-                await event.reply(f"📌 {answer[:1000]}")
-            else:
-                await event.reply(f"🔎 {answer[:1000]}")
-
-        else:
-            await event.reply("❌ No answer found.")
+        # Telegram message limit safety
+        await event.reply(answer[:1000])
 
     except Exception as e:
-        print(e)
+        print("Search error:", e)
         await event.reply("❌ Search failed.")
