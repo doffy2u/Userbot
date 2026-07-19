@@ -15,7 +15,9 @@ from storage.database import cleanup_old_messages
 from handlers.moderation import handle_moderation
 from handlers.scramble import handle_scramble
 from services.anagram import load_dictionary
-
+from handlers.afk import handle_afk
+from handlers.archive import register_archive
+from handlers.search import handle_search
 
 client = TelegramClient(
     SESSION_NAME,
@@ -52,6 +54,16 @@ client.add_event_handler(
     handle_scramble,
     events.NewMessage()
 )
+client.add_event_handler(
+    handle_afk,
+    events.NewMessage()
+)
+register_archive(client)
+client.add_event_handler(
+    handle_search,
+    events.NewMessage()
+)
+
 print("👂 Yapper is online...")
 
 client.start()

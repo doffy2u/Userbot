@@ -1,4 +1,5 @@
 import sqlite3
+import time
 
 DB_NAME = "yapper.db"
 
@@ -9,11 +10,22 @@ def init_db():
 
     cur.execute("""
     CREATE TABLE IF NOT EXISTS messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+    
+        message_id INTEGER PRIMARY KEY,
+    
         chat_id INTEGER,
-        sender TEXT,
-        message TEXT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    
+        sender_id INTEGER,
+        sender_name TEXT,
+        username TEXT,
+    
+        message_type TEXT,
+    
+        text TEXT,
+    
+        file_id TEXT,
+    
+        sent_time INTEGER
     )
     """)
     cur.execute("""
@@ -37,22 +49,52 @@ def init_db():
 
     conn.commit()
     conn.close()
+def save_message(
+    message_id,
+    chat_id,
+    sender_id,
+    sender_name,
+    username,
+    message_type,
+    text="",
+    file_id=""
+):
 
-
-def save_message(chat_id, sender, message):
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
 
     cur.execute(
         """
-        INSERT INTO messages(chat_id, sender, message)
-        VALUES (?, ?, ?)
+        INSERT OR REPLACE INTO messages
+        (
+            message_id,
+            chat_id,
+            sender_id,
+            sender_name,
+            username,
+            message_type,
+            text,
+            file_id,
+            sent_time
+        )
+        VALUES (?,?,?,?,?,?,?,?,?)
         """,
-        (chat_id, sender, message)
+        (
+            message_id,
+            chat_id,
+            sender_id,
+            sender_name,
+            username,
+            message_type,
+            text,
+            file_id,
+            int(time.time())
+        )
     )
 
     conn.commit()
     conn.close()
+
     cleanup_old_messages()
 def save_event(chat_id, event_type, user="", details=""):
     
@@ -124,10 +166,15 @@ def cleanup_old_messages():
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
 
-    cur.execute("""
+    cutoff = int(time.time()) - (5 * 24 * 60 * 60)
+    
+    cur.execute(
+        """
         DELETE FROM messages
-        WHERE timestamp < datetime('now', '-5 days')
-    """)
+        WHERE sent_time < ?
+        """,
+        (cutoff,)
+    )
 
     cur.execute("""
         DELETE FROM events
@@ -162,3 +209,83 @@ def get_recent_events(chat_id, since):
     conn.close()
 
     return rows
+
+def set_afk(chat_id, user_id, name, reason):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        INSERT OR REPLACE INTO afk
+        (chat_id,user_id,name,reason,start_time)
+        VALUES(?,?,?,?,?)
+        """,
+        (
+            chat_id,
+            user_id,
+            name,
+            reason,
+            int(time.time())
+        )
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def remove_afk(chat_id, user_id):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        DELETE FROM afk
+        WHERE chat_id=? AND user_id=?
+        """,
+        (chat_id, user_id)
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def get_afk(chat_id, user_id):
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT *
+        FROM afk
+        WHERE chat_id=? AND user_id=?
+        """,
+        (chat_id, user_id)
+    )
+
+    row = cur.fetchone()
+
+    conn.close()
+
+    return row
+def get_all_afk(chat_id):
+
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT *
+        FROM afk
+        WHERE chat_id=?
+        """,
+        (chat_id,)
+    )
+
+    rows = cur.fetchall()
+
+    conn.close()
+
+    return rows
+
