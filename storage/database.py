@@ -46,6 +46,15 @@ def init_db():
         PRIMARY KEY(chat_id, user_id)
     )
     """)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS ai_memory (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        memory_key TEXT NOT NULL,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        timestamp INTEGER NOT NULL
+    )
+    """)
 
     conn.commit()
     conn.close()
@@ -162,12 +171,11 @@ def update_last_briefing(chat_id, user_id):
     conn.commit()
     conn.close()
 def cleanup_old_messages():
-
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
 
     cutoff = int(time.time()) - (5 * 24 * 60 * 60)
-    
+
     cur.execute(
         """
         DELETE FROM messages
@@ -180,10 +188,12 @@ def cleanup_old_messages():
         DELETE FROM events
         WHERE timestamp < datetime('now', '-5 days')
     """)
-    
 
     conn.commit()
     conn.close()
+
+    # Run AFTER closing the first connection
+    cleanup_ai_memory()
 def get_recent_events(chat_id, since):
 
     conn = sqlite3.connect(DB_NAME)
@@ -288,4 +298,64 @@ def get_all_afk(chat_id):
     conn.close()
 
     return rows
+def save_ai_message(memory_key, role, content):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        INSERT INTO ai_memory
+        (memory_key, role, content, timestamp)
+        VALUES (?, ?, ?, ?)
+        """,
+        (
+            memory_key,
+            role,
+            content,
+            int(time.time())
+        )
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def get_ai_history(memory_key, limit=20):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT role, content
+        FROM ai_memory
+        WHERE memory_key=?
+        ORDER BY id DESC
+        LIMIT ?
+        """,
+        (memory_key, limit)
+    )
+
+    rows = cur.fetchall()
+
+    conn.close()
+
+    return rows[::-1]
+
+
+def cleanup_ai_memory():
+    cutoff = int(time.time()) - (5 * 24 * 60 * 60)
+
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        DELETE FROM ai_memory
+        WHERE timestamp < ?
+        """,
+        (cutoff,)
+    )
+
+    conn.commit()
+    conn.close()
 
