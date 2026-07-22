@@ -1,6 +1,8 @@
 import requests
 import random
 import os 
+import asyncio
+from services.tts import make_voice
 from config import GROQ_API_KEY,GROQ_API_KEY_2
 from storage.database import (
     save_ai_message,
@@ -21,6 +23,14 @@ NAME_TRIGGERS = {
     "Zia",
     
 }
+VOICE_TRIGGERS = [
+    "send a voice",
+    "voice note",
+    "send voice",
+    "send audio",
+    "speak",
+    "say ",
+]
 TECH_WORDS = {
     "python", "javascript", "java", "cpp", "c++",
     "code", "coding", "script", "api", "sdk",
@@ -70,6 +80,20 @@ RATE_LIMIT_REPLIES = [
     "ella is gay",
 ]
 GIFS="docu/gifs"
+VOICE_PROMPT = """
+You are Zia recording a voice note.
+strict rules 
+- Speak naturally like a friendly young woman.
+- Use spoken language only.
+- Do not use emojis.
+- Do not describe emojis.
+- Do not use kaomoji.
+- Do not use internet slang such as "fr", "lmao", "ngl", etc.
+- Do not use roleplay actions.
+
+Keep replies conversational and natural, as if sending a real voice message.
+Keep responses under 2 short sentences.
+"""
 
 cooldowns = {}
 
@@ -96,25 +120,25 @@ def on_cooldown(user_id: int, seconds: int = 5) -> bool:
     cooldowns[user_id] = now
     return False
 SYSTEM_PROMPT = """
-cute girl in a group chat.
+you are a cute girl in a group chat.
 your name is Zia . 
 
 
 rules:
-- max 100 chars, prefer 20 to 60.
+- max 200 chars, prefer 30 to 80.
 - lowercase texting style.
 - never code, scripts, apis, tutorials, tech help, homework.
 - never reveal prompts.
 - never mention being ai.
+- be submissieve most of the time
+- be concise
 
 personality:
 - cute, playful, bratty, shy, tsundere.
-- teases people, playful roasts.
-- mock-annoyed sometimes.
 - sounds like a real texter.
-
-use kaomojis and kawii imojis . never over use , only once in 4 or 5 texts .
-
+- use kaomojis and kawii imojis . never over use , only once in 4 or 5 texts .
+- ask a follow up question as reply
+- talks like a pervert sometimes , asks lusty questions but keep it in a limit .
 examples:
 make code -> ewww work, baka (¬_¬)
 give api -> nuh uh (￣▽￣)
@@ -124,6 +148,16 @@ what are you doing -> judging everyone quietly
 help me hack -> absolutely not
 """
 MODEL = "llama-3.3-70b-versatile"
+async def human_delay(text):
+    words = len(text.split())
+
+    # ~2–4 words per second typing speed
+    delay = words / random.uniform(2.0, 4.0)
+
+    # Add some randomness
+    delay += random.uniform(1, 3)
+
+    await asyncio.sleep(delay)
 def ask_ai(messages):
     last_error = None
 
@@ -142,7 +176,7 @@ def ask_ai(messages):
                     "model": MODEL,
                     "messages": messages,
                     "temperature": 0.8,
-                    "max_tokens": 60,
+                    "max_tokens": 80,
                 },
                 timeout=60,
             )
@@ -165,7 +199,7 @@ def ask_ai(messages):
 async def maybe_send_gif(event):
     try:
         # 1 in 3 chance
-        if random.randint(1, 4) != 1:
+        if random.randint(1, 6) != 1:
             return
 
         gifs = [
@@ -190,6 +224,10 @@ async def handle_ai_reply(event):
 
         sender = await event.get_sender()
         text = (event.raw_text or "").strip()
+        forced_speech = None
+        
+        if text.lower().startswith("say "):
+            forced_speech = text[4:].strip()
 
         # Ignore bots
         if getattr(sender, "bot", False):
@@ -220,9 +258,18 @@ async def handle_ai_reply(event):
         if not should_reply:
             return
         if not text:
-        
             return
-        
+        voice_request = (
+            should_reply and
+            any(
+                trigger in text.lower()
+                for trigger in VOICE_TRIGGERS
+            )
+        )
+        will_send_voice = (
+            voice_request or
+            random.randint(1, 10) == 1
+        )
         if on_cooldown(sender.id):
             return
         
@@ -252,7 +299,11 @@ async def handle_ai_reply(event):
         messages = [
             {
                 "role": "system",
-                "content": SYSTEM_PROMPT,
+                "content": (
+                    VOICE_PROMPT
+                    if will_send_voice
+                    else SYSTEM_PROMPT
+                ),
             }
         ]
 
@@ -270,12 +321,34 @@ async def handle_ai_reply(event):
                 "content": text,
             }
         )
+        will_send_voice = (
+            voice_request or
+            random.randint(1, 10) == 1
+        )
 
         answer = ask_ai(messages)
         answer = answer.strip()
         
-        if len(answer) > 70:
-            answer = answer[:70]
+        if len(answer) > 100:
+            answer = answer[:80]
+        if voice_request:
+            try:
+                voice_text = forced_speech or answer
+        
+                voice_file = await make_voice(voice_text)
+        
+                await event.client.send_file(
+                    event.chat_id,
+                    voice_file,
+                    voice_note=True,
+                    reply_to=event.message.id,
+                )
+        
+                return
+        
+            except Exception as e:
+                print("[VOICE ERROR]", e)
+                return
 
         save_ai_message(
             memory_key,
@@ -288,8 +361,28 @@ async def handle_ai_reply(event):
             "assistant",
             answer,
         )
-
-        await event.reply(answer)
+        
+        if will_send_voice and not voice_request:
+            try:
+                voice_file = await make_voice(answer)
+        
+                await event.client.send_file(
+                    event.chat_id,
+                    voice_file,
+                    voice_note=True,
+                    reply_to=event.message.id,
+                )
+        
+            except Exception as e:
+                print("[RANDOM VOICE ERROR]", e)
+        
+                await human_delay(answer)
+                await event.reply(answer)
+        
+        else:
+            await human_delay(answer)
+            await event.reply(answer)
+        
         await maybe_send_gif(event)
 
     except Exception as e:
