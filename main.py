@@ -19,6 +19,11 @@ from handlers.afk import handle_afk
 from handlers.archive import register_archive
 #from handlers.search import handle_search
 from handlers.replay import handle_ai_reply
+from handlers.music import handle_music
+from music.player import init_music
+from music.youtube import get_audio_url
+from handlers.queue import handle_queue
+from handlers.music_controls import handle_music_controls
 client = TelegramClient(
     SESSION_NAME,
     API_ID,
@@ -62,6 +67,18 @@ client.add_event_handler(
     handle_afk,
     events.NewMessage()
 )
+client.add_event_handler(
+    handle_music,
+    events.NewMessage()
+)
+client.add_event_handler(
+    handle_queue,
+    events.NewMessage()
+)
+client.add_event_handler(
+    handle_music_controls,
+    events.NewMessage()
+)
 #register_archive(client)
 #client.add_event_handler(
     #handle_search,
@@ -71,5 +88,7 @@ client.add_event_handler(
 print("👂 Yapper is online...")
 
 client.start()
-
+client.loop.run_until_complete(
+    init_music(client)
+)
 client.run_until_disconnected()

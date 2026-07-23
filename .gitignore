@@ -4,3 +4,5 @@ downloads/
 *.session
 __pycache__/
 *.pyc
+venv/
+venv/

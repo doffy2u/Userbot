@@ -10,3 +10,4 @@ archive_channel = os.getenv("ARCHIVE_CHANNEL")
 ARCHIVE_CHANNEL = int(archive_channel) if archive_channel else None
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_API_KEY_2 = os.getenv("GROQ_API_KEY_2")
+GROQ_API_KEY_3 = os.getenv("GROQ_API_KEY_3")

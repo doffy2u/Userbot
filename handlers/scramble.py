@@ -5,9 +5,11 @@ from services.anagram import get_candidates
 from services.scramble import lookup, learn
 
 
-SCRAMBLE_REGEX = r"Word:\s*([A-Za-z]+)"
+SCRAMBLE_REGEX = r'''🌟 Scrambled Word Challenge! 🌟
 
-MY_NAME = "bogdan"
+🔤 Word:\s*([A-Za-z]+)'''
+
+MY_NAME = "Zia♡⁠˖⁠꒰⁠ᵕ⁠༚⁠ᵕ"
 
 current_scramble = None
 current_candidates = []
