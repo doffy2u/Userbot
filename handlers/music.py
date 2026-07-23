@@ -1,11 +1,11 @@
 import time
-
-import music.player as player
-from music.youtube import get_audio_url
+from music.preload import preload
 from music.session import get_session
 from music.queue import Song
 from music.status import update_status
-from music.fairness import check_request, add_request
+from music.search import search_song
+from music.youtube import get_audio
+import music.player as player
 
 
 async def handle_music(event):
@@ -18,24 +18,7 @@ async def handle_music(event):
     query = text[5:].strip()
 
     if not query:
-        await event.reply(
-            "Usage: .play <song>"
-        )
-        return
-
-    allowed = check_request(
-        event.sender_id
-    )
-
-    if not allowed:
-        await event.reply(
-"""╭─ 🎧 Music Queue
-│
-│ Your previous song is still having its turn 🎶
-│
-│ Let someone else pick the songs too 😋
-╰─────────────"""
-        )
+        await event.reply("Usage: .play <song>")
         return
 
     search_msg = await event.reply(
@@ -43,8 +26,15 @@ async def handle_music(event):
     )
 
     try:
+        result = search_song(query)
 
-        info = get_audio_url(query)
+        if not result:
+            await search_msg.edit("❌ Song not found.")
+            return
+
+        info = get_audio(
+            result["video_id"]
+        )
 
         session = get_session(
             event.chat_id
@@ -62,10 +52,7 @@ async def handle_music(event):
             )
         )
 
-        add_request(
-            event.sender_id,
-            song.title
-        )
+        song.search_msg = search_msg
 
         session.add(song)
 
@@ -76,34 +63,17 @@ f"""🎵 Added to queue
 👤 {song.username}"""
         )
 
+        song.queue_msg = queue_msg
+
         if not session.playing:
-
-            try:
-                await search_msg.delete()
-            except Exception:
-                pass
-
-            try:
-                await queue_msg.delete()
-            except Exception:
-                pass
-
             await play_next(
                 event.chat_id
             )
 
     except Exception as e:
-
-        try:
-            await search_msg.delete()
-        except Exception:
-            pass
-
         await event.reply(
             f"❌ {e}"
-        )
-
-
+        )        
 async def play_next(chat_id):
 
     session = get_session(chat_id)
@@ -122,6 +92,30 @@ async def play_next(chat_id):
     song.pause_offset = 0
     song.paused_at = 0
 
+    # Remove temporary search/queue messages
+    if song.search_msg:
+        try:
+            await song.search_msg.delete()
+        except Exception:
+            pass
+
+    if song.queue_msg:
+        try:
+            await song.queue_msg.delete()
+        except Exception:
+            pass
+
+    # Start playing first
+    start = time.time()
+    
+    await player.pytg.play(
+        chat_id,
+        stream=song.stream or song.url
+    )
+    
+    print(f"play() took {time.time() - start:.2f} seconds")
+
+    # Show now playing after stream starts
     await update_status(
         player.client,
         session,
@@ -129,10 +123,8 @@ async def play_next(chat_id):
         song
     )
 
-    await player.pytg.play(
-        chat_id,
-        stream=song.url
-    )
-
-
+    # Prepare next song
+    if session.items:
+        await preload(session.items[0])
 player.set_next_callback(play_next)
+

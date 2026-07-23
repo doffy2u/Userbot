@@ -21,7 +21,7 @@ from handlers.archive import register_archive
 from handlers.replay import handle_ai_reply
 from handlers.music import handle_music
 from music.player import init_music
-from music.youtube import get_audio_url
+from music.youtube import get_audio
 from handlers.queue import handle_queue
 from handlers.music_controls import handle_music_controls
 client = TelegramClient(

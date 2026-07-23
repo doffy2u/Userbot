@@ -1,7 +1,10 @@
 from yt_dlp import YoutubeDL
 
 
-def get_audio_url(query: str):
+def get_audio(video_id):
+
+    url = f"https://www.youtube.com/watch?v={video_id}"
+
     opts = {
         "quiet": True,
         "noplaylist": True,
@@ -9,15 +12,14 @@ def get_audio_url(query: str):
     }
 
     with YoutubeDL(opts) as ydl:
-        result = ydl.extract_info(
-            f"ytsearch1:{query}",
+
+        info = ydl.extract_info(
+            url,
             download=False
         )
 
-        entry = result["entries"][0]
-
         return {
-            "title": entry["title"],
-            "url": entry["url"],
-            "duration": entry.get("duration")
+            "title": info["title"],
+            "url": info["url"],
+            "duration": info.get("duration")
         }

@@ -1,6 +1,5 @@
 import music.player as player
 from music.session import get_session
-from music.fairness import release_song
 from music.status import clear_now_playing
 from utils.permissions import is_admin
 
